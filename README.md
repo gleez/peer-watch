@@ -1,11 +1,35 @@
 # Pod-watch sidecar container
 
 Borrowed from https://github.com/robwil/peer-aware-groupcache
-https://stackoverflow.com/questions/52951777/listing-pods-from-inside-a-pod-forbidden
+
 
 ### Pod role
 
 Tutorial: https://medium.com/better-programming/k8s-tips-using-a-serviceaccount-801c433d0023
+
+```
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pod-reader
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "watch", "list"]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: pod-reader
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: pod-reader
+  apiGroup: rbac.authorization.k8s.io
+```
 
 ##### Create the pod-reader ROLE
 
