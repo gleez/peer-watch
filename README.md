@@ -7,6 +7,8 @@ Borrowed from https://github.com/robwil/peer-aware-groupcache
 
 Tutorial: https://medium.com/better-programming/k8s-tips-using-a-serviceaccount-801c433d0023
 
+##### Cluster Role example
+
 ```
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -31,13 +33,13 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
 ```
 
-##### Create the pod-reader ROLE
+##### Role example - Create the pod-reader role in dev namespace
 
 ```console
 $ kubectl create role pod-reader --verb=get,list,watch --resource=pods -n dev
 ```
 
-##### Create ROLE BINDING and attach the role to the dev:default service account
+##### Create ROLE BINDING and attach the role to the dev:default service account in dev namespace
 
 ```console
 $ kubectl create rolebinding sa-read-pods –-role=pod-reader –-user=system:serviceaccount:dev:default -n dev
