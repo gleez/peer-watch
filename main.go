@@ -27,15 +27,15 @@ var (
 	Version  string
 	Revision string
 
-	labelSelector = flag.String("label-selector", "app=peer-aware-groupcache", "The label to watch against pods")
-	namespace     = flag.String("election-namespace", apiv1.NamespaceDefault, "The Kubernetes namespace for the pods")
-	port          = flag.Int("port", 8080, "default port")
+	labelSelector = flag.String("label-selector", "app=peer-watch", "The label to watch against pods")
+	namespace     = flag.String("namespace", apiv1.NamespaceDefault, "The Kubernetes namespace for the pods")
+	port          = flag.Int("port", 8080, "default peer port to append in urls")
 	inCluster     = flag.Bool("use-cluster-credentials", false, "Should this request use cluster credentials?")
 	kubeconfig    = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
-	addr          = flag.String("http", "", "If non-empty, stand up a simple webserver that reports the peer state")
+	addr          = flag.String("http", ":4040", "If non-empty, stand up a simple webserver that reports the peer state")
+	debug         = flag.Bool("debug", false, "Should enable debug?")
 	versionFlag   = flag.Bool("version", false, "display version and exit")
 
-	debug       bool = false
 	selfUrl     string
 	urlSet           = make(UrlSet)
 	initialized bool = false
@@ -58,7 +58,7 @@ func makeClient() (*kubernetes.Clientset, error) {
 	}
 
 	if cfg == nil {
-		return nil, fmt.Errorf("k8 config is not set")
+		return nil, fmt.Errorf("peer-watch: config is not set")
 	}
 
 	return kubernetes.NewForConfig(rest.AddUserAgent(cfg, "peer-watch"))
@@ -66,6 +66,7 @@ func makeClient() (*kubernetes.Clientset, error) {
 
 func webHandler(res http.ResponseWriter, req *http.Request) {
 	podUrls := urlSet.Keys()
+
 	data, err := json.Marshal(podUrls)
 	if err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
@@ -79,7 +80,11 @@ func webHandler(res http.ResponseWriter, req *http.Request) {
 
 func validateFlags() {
 	if *kubeconfig == "" && *inCluster == false {
-		klog.Fatal("both --kubeconfig and --use-cluster-credentials cannot be empty")
+		klog.Fatal("peer-watch: both --kubeconfig and --use-cluster-credentials cannot be empty")
+	}
+
+	if n := os.Getenv("POD_IP"); n == "" {
+		klog.Fatal("peer-watch: pod ip env value cannot be empty")
 	}
 }
 
@@ -87,7 +92,7 @@ func main() {
 	flag.Parse()
 
 	if *versionFlag {
-		fmt.Printf("peer-watch version=%s revision=%s\n", Version, Revision)
+		fmt.Printf("peer-watch: version=%s revision=%s\n", Version, Revision)
 		os.Exit(0)
 	}
 
@@ -105,7 +110,7 @@ func main() {
 
 	client, err := makeClient()
 	if err != nil {
-		klog.Fatalf("error connecting to the client: %v", err)
+		klog.Fatalf("peer-watch: error connecting to the client: %v", err)
 	}
 
 	// listen for interrupts or the Linux SIGTERM signal and cancel
@@ -115,16 +120,16 @@ func main() {
 	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-ch
-		klog.Info("Received termination, signaling shutdown")
+		klog.Info("peer-watch: Received termination, signaling shutdown")
 		// cancel()
 	}()
 
 	opts := metav1.ListOptions{LabelSelector: *labelSelector}
 
-	initialPeers, err := peerwatch.Init(myIp, *namespace, opts, monitorPodsFn, client, debug)
+	initialPeers, err := peerwatch.Init(myIp, *namespace, opts, monitorPodsFn, client, *debug)
 	if err != nil {
 		// Setup groupcache with just self as peer
-		klog.Infof("WARNING: K8s error getting initial pods: %v", err)
+		klog.Infof("peer-watch: WARNING error getting initial pods: %v", err)
 
 		url := fmt.Sprintf("http://0.0.0.0:%d", port)
 		urlSet[url] = true
@@ -135,19 +140,22 @@ func main() {
 
 	if err == nil {
 		for _, ip := range initialPeers {
-			urlSet[podUrl(ip)] = true
+			if ip != "" {
+				urlSet[podUrl(ip)] = true
+			}
 		}
 
-		if debug {
-			klog.Infof("K8s: init %s", podUrl(myIp))
+		if *debug {
+			klog.Infof("peer-watch: init %s", podUrl(myIp))
 		}
 
 		initialized = true
 	}
 
 	if len(*addr) > 0 {
+		klog.Infof("peer-watch: http server starting at %s", *addr)
 		http.HandleFunc("/", webHandler)
-		http.ListenAndServe(*addr, nil)
+		klog.Fatal(http.ListenAndServe(*addr, nil))
 	} else {
 		select {}
 	}
@@ -159,7 +167,7 @@ func monitorPodsFn(ip string, state peerwatch.NotifyState) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	klog.Infof("K8s: Got notify: %s [%d]", ip, state)
+	klog.Infof("peer-watch: Got notify: %s [%d]", ip, state)
 
 	switch state {
 	case peerwatch.Added:
@@ -171,13 +179,12 @@ func monitorPodsFn(ip string, state peerwatch.NotifyState) {
 	}
 
 	podUrls := urlSet.Keys()
-	// 	pool.Set(podUrls...)
 
-	klog.Infof("K8s: New pod list = %v", podUrls)
+	klog.Infof("peer-watch: New pod list = %v", podUrls)
 }
 
 func podUrl(podIp string) string {
-	return fmt.Sprintf("http://%s:%d", podIp, port)
+	return fmt.Sprintf("http://%s:%d", podIp, *port)
 }
 
 type UrlSet map[string]bool
