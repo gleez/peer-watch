@@ -51,7 +51,7 @@ func monitorPodState(clientset *kubernetes.Clientset, namespace string, listOpti
 	// begin watch API call
 	watchInterface, err := clientset.CoreV1().Pods(namespace).Watch(listOptions)
 	if err != nil {
-		debugLogf("WARNING: PodWatch error watching pods: %v", err)
+		debugLogf("PodWatch: WARNING PodWatch error watching pods: %v", err)
 		return
 	}
 
@@ -60,7 +60,7 @@ func monitorPodState(clientset *kubernetes.Clientset, namespace string, listOpti
 	for event := range ch {
 		pod, ok := event.Object.(*v1.Pod)
 		if !ok {
-			debugLogf("WARNING: PodWatch got non-pod object from pod watching: %v", event.Object)
+			debugLogf("PodWatch: WARNING PodWatch got non-pod object from pod watching: %v", event.Object)
 			continue
 		}
 
