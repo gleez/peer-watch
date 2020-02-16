@@ -8,7 +8,7 @@ ADD . /go/src/github.com/gleez/peer-watch
 RUN cd /go/src/github.com/gleez/peer-watch \
  && COMMIT_SHA=$(git rev-parse --short HEAD) \
  && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-s -w  \
-    -X main.Version=0.2 \
+    -X main.Version=0.3 \
     -X main.Revision=${COMMIT_SHA}" \
     -a -tags netgo -installsuffix netgo -o peer-watch main.go
     
