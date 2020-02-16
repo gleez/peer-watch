@@ -141,7 +141,3 @@ func Init(myIp string, namespace string, listOptions metav1.ListOptions, f Notif
 
 	return podIps, nil
 }
-
-func PodUrl(podIp string, port int) string {
-	return fmt.Sprintf("http://%s:%d", podIp, port)
-}

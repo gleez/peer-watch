@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"sort"
+	"strings"
 	"syscall"
 	"time"
 
@@ -29,7 +30,6 @@ var (
 
 	labelSelector = flag.String("label-selector", "app=peer-watch", "The label to watch against pods")
 	namespace     = flag.String("namespace", apiv1.NamespaceDefault, "The Kubernetes namespace for the pods")
-	port          = flag.Int("port", 8080, "default peer port to append in urls")
 	inCluster     = flag.Bool("use-cluster-credentials", false, "Should this request use cluster credentials?")
 	kubeconfig    = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
 	addr          = flag.String("http", ":4040", "If non-empty, stand up a simple webserver that reports the peer state")
@@ -131,9 +131,11 @@ func main() {
 		// Setup groupcache with just self as peer
 		klog.Infof("peer-watch: WARNING error getting initial pods: %v", err)
 
-		url := fmt.Sprintf("http://0.0.0.0:%d", port)
-		urlSet[url] = true
+		if *debug {
+			klog.Infof("peer-watch: init %s", podUrl(myIp))
+		}
 
+		urlSet[podUrl(myIp)] = true
 		initialized = true
 		return
 	}
@@ -184,7 +186,8 @@ func monitorPodsFn(ip string, state peerwatch.NotifyState) {
 }
 
 func podUrl(podIp string) string {
-	return fmt.Sprintf("http://%s:%d", podIp, *port)
+	// return fmt.Sprintf("http://%s:%d", podIp, *port)
+	return strings.TrimSpace(podIp)
 }
 
 type UrlSet map[string]bool
